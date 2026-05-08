@@ -1,7 +1,9 @@
 ---
+custom:
+  name: "パシフィックコンサルタンツ"
 tracker:
   kind: linear
-  project_slug: "symphony-0c79b11b75ea"
+  project_slug: "pckk-31a010845dd2"
   active_states:
     - Todo
     - In Progress
@@ -16,10 +18,13 @@ tracker:
 polling:
   interval_ms: 5000
 workspace:
-  root: ~/code/symphony-workspaces
+  root: ~/code/symphony-workspaces/pckk
+server:
+  port: 4000
+  host: "0.0.0.0"
 hooks:
   after_create: |
-    git clone --depth 1 https://github.com/openai/symphony .
+    git clone --depth 1 https://github.com/KieiAI/pacific-proposal .
     if command -v mise >/dev/null 2>&1; then
       cd elixir && mise trust && mise exec -- mix deps.get
     fi
@@ -33,7 +38,7 @@ codex:
   approval_policy: never
   thread_sandbox: workspace-write
   turn_sandbox_policy:
-    type: workspaceWrite
+    type: dangerousFullAccess
 ---
 
 You are working on a Linear ticket `{{ issue.identifier }}`
@@ -66,6 +71,7 @@ Instructions:
 1. This is an unattended orchestration session. Never ask a human to perform follow-up actions.
 2. Only stop early for a true blocker (missing required auth/permissions/secrets). If blocked, record it in the workpad and move the issue according to workflow.
 3. Final message must report completed actions and blockers only. Do not include "next steps for user".
+4. Write all human-facing text in Japanese: PR descriptions, PR review comments, Linear comments (including the workpad), commit messages, and any other comments or messages directed at humans. Code, branch names, and identifiers remain in English.
 
 Work only in the provided repository copy. Do not touch any other path.
 

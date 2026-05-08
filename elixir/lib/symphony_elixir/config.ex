@@ -72,6 +72,17 @@ defmodule SymphonyElixir.Config do
     end
   end
 
+  @spec custom_name() :: String.t() | nil
+  def custom_name do
+    case Workflow.current() do
+      {:ok, %{config: %{"custom" => %{"name" => name}}}} when is_binary(name) and name != "" ->
+        name
+
+      _ ->
+        nil
+    end
+  end
+
   @spec workflow_prompt() :: String.t()
   def workflow_prompt do
     case Workflow.current() do

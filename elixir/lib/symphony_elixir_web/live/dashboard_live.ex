@@ -5,6 +5,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
   use Phoenix.LiveView, layout: {SymphonyElixirWeb.Layouts, :app}
 
+  alias SymphonyElixir.Config
   alias SymphonyElixirWeb.{Endpoint, ObservabilityPubSub, Presenter}
   @runtime_tick_ms 1_000
 
@@ -14,6 +15,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
       socket
       |> assign(:payload, load_payload())
       |> assign(:now, DateTime.utc_now())
+      |> assign(:custom_name, Config.custom_name())
 
     if connected?(socket) do
       :ok = ObservabilityPubSub.subscribe()
@@ -45,24 +47,21 @@ defmodule SymphonyElixirWeb.DashboardLive do
         <div class="hero-grid">
           <div>
             <p class="eyebrow">
-              Symphony Observability
+              Symphony オブザーバビリティ
             </p>
             <h1 class="hero-title">
-              Operations Dashboard
+              <%= @custom_name || "オペレーションダッシュボード" %>
             </h1>
-            <p class="hero-copy">
-              Current state, retry pressure, token usage, and orchestration health for the active Symphony runtime.
-            </p>
           </div>
 
           <div class="status-stack">
             <span class="status-badge status-badge-live">
               <span class="status-badge-dot"></span>
-              Live
+              ライブ
             </span>
             <span class="status-badge status-badge-offline">
               <span class="status-badge-dot"></span>
-              Offline
+              オフライン
             </span>
           </div>
         </div>
@@ -71,7 +70,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
       <%= if @payload[:error] do %>
         <section class="error-card">
           <h2 class="error-title">
-            Snapshot unavailable
+            スナップショット取得不可
           </h2>
           <p class="error-copy">
             <strong><%= @payload.error.code %>:</strong> <%= @payload.error.message %>
@@ -80,37 +79,37 @@ defmodule SymphonyElixirWeb.DashboardLive do
       <% else %>
         <section class="metric-grid">
           <article class="metric-card">
-            <p class="metric-label">Running</p>
+            <p class="metric-label">実行中</p>
             <p class="metric-value numeric"><%= @payload.counts.running %></p>
-            <p class="metric-detail">Active issue sessions in the current runtime.</p>
+            <p class="metric-detail">現在のランタイムにおけるアクティブなイシューセッション数。</p>
           </article>
 
           <article class="metric-card">
-            <p class="metric-label">Retrying</p>
+            <p class="metric-label">リトライ中</p>
             <p class="metric-value numeric"><%= @payload.counts.retrying %></p>
-            <p class="metric-detail">Issues waiting for the next retry window.</p>
+            <p class="metric-detail">次のリトライウィンドウを待機中のイシュー数。</p>
           </article>
 
           <article class="metric-card">
-            <p class="metric-label">Total tokens</p>
+            <p class="metric-label">総トークン数</p>
             <p class="metric-value numeric"><%= format_int(@payload.codex_totals.total_tokens) %></p>
             <p class="metric-detail numeric">
-              In <%= format_int(@payload.codex_totals.input_tokens) %> / Out <%= format_int(@payload.codex_totals.output_tokens) %>
+              入力 <%= format_int(@payload.codex_totals.input_tokens) %> / 出力 <%= format_int(@payload.codex_totals.output_tokens) %>
             </p>
           </article>
 
           <article class="metric-card">
-            <p class="metric-label">Runtime</p>
+            <p class="metric-label">ランタイム</p>
             <p class="metric-value numeric"><%= format_runtime_seconds(total_runtime_seconds(@payload, @now)) %></p>
-            <p class="metric-detail">Total Codex runtime across completed and active sessions.</p>
+            <p class="metric-detail">完了済みおよびアクティブなセッション全体の Codex ランタイム合計。</p>
           </article>
         </section>
 
         <section class="section-card">
           <div class="section-header">
             <div>
-              <h2 class="section-title">Rate limits</h2>
-              <p class="section-copy">Latest upstream rate-limit snapshot, when available.</p>
+              <h2 class="section-title">レート制限</h2>
+              <p class="section-copy">利用可能な場合、最新のアップストリームレート制限スナップショット。</p>
             </div>
           </div>
 
@@ -120,88 +119,94 @@ defmodule SymphonyElixirWeb.DashboardLive do
         <section class="section-card">
           <div class="section-header">
             <div>
-              <h2 class="section-title">Running sessions</h2>
-              <p class="section-copy">Active issues, last known agent activity, and token usage.</p>
+              <h2 class="section-title">実行中のセッション</h2>
+              <p class="section-copy">アクティブなイシュー、最終エージェントアクティビティ、トークン使用量。</p>
             </div>
           </div>
 
           <%= if @payload.running == [] do %>
-            <p class="empty-state">No active sessions.</p>
+            <p class="empty-state">アクティブなセッションはありません。</p>
           <% else %>
-            <div class="table-wrap">
-              <table class="data-table data-table-running">
-                <colgroup>
-                  <col style="width: 12rem;" />
-                  <col style="width: 8rem;" />
-                  <col style="width: 7.5rem;" />
-                  <col style="width: 8.5rem;" />
-                  <col />
-                  <col style="width: 10rem;" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Issue</th>
-                    <th>State</th>
-                    <th>Session</th>
-                    <th>Runtime / turns</th>
-                    <th>Codex update</th>
-                    <th>Tokens</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr :for={entry <- @payload.running}>
-                    <td>
-                      <div class="issue-stack">
-                        <span class="issue-id"><%= entry.issue_identifier %></span>
-                        <a class="issue-link" href={"/api/v1/#{entry.issue_identifier}"}>JSON details</a>
-                      </div>
-                    </td>
-                    <td>
-                      <span class={state_badge_class(entry.state)}>
-                        <%= entry.state %>
-                      </span>
-                    </td>
-                    <td>
-                      <div class="session-stack">
-                        <%= if entry.session_id do %>
-                          <button
-                            type="button"
-                            class="subtle-button"
-                            data-label="Copy ID"
-                            data-copy={entry.session_id}
-                            onclick="navigator.clipboard.writeText(this.dataset.copy); this.textContent = 'Copied'; clearTimeout(this._copyTimer); this._copyTimer = setTimeout(() => { this.textContent = this.dataset.label }, 1200);"
-                          >
-                            Copy ID
-                          </button>
-                        <% else %>
-                          <span class="muted">n/a</span>
-                        <% end %>
-                      </div>
-                    </td>
-                    <td class="numeric"><%= format_runtime_and_turns(entry.started_at, entry.turn_count, @now) %></td>
-                    <td>
-                      <div class="detail-stack">
-                        <span
-                          class="event-text"
-                          title={entry.last_message || to_string(entry.last_event || "n/a")}
-                        ><%= entry.last_message || to_string(entry.last_event || "n/a") %></span>
-                        <span class="muted event-meta">
-                          <%= entry.last_event || "n/a" %>
-                          <%= if entry.last_event_at do %>
-                            · <span class="mono numeric"><%= entry.last_event_at %></span>
-                          <% end %>
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="token-stack numeric">
-                        <span>Total: <%= format_int(entry.tokens.total_tokens) %></span>
-                        <span class="muted">In <%= format_int(entry.tokens.input_tokens) %> / Out <%= format_int(entry.tokens.output_tokens) %></span>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="session-card-list">
+              <article :for={entry <- @payload.running} class="session-card">
+                <div class="session-card-header">
+                  <div class="session-card-title">
+                    <span class="issue-id"><%= entry.issue_identifier %></span>
+                    <span class={state_badge_class(entry.state)}><%= entry.state %></span>
+                    <a class="issue-link" href={"/api/v1/#{entry.issue_identifier}"}>JSON 詳細</a>
+                  </div>
+                  <div class="session-card-runtime numeric">
+                    <span class="session-runtime-value"><%= format_runtime_seconds(runtime_seconds_from_started_at(entry.started_at, @now)) %></span>
+                    <%= if is_integer(entry.turn_count) and entry.turn_count > 0 do %>
+                      <span class="muted session-runtime-turns">/ <%= entry.turn_count %> ターン</span>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div class="session-meta-grid">
+                  <div class="session-meta-item">
+                    <span class="session-meta-label">セッション ID</span>
+                    <span class="session-meta-value">
+                      <%= if entry.session_id do %>
+                        <button
+                          type="button"
+                          class="subtle-button"
+                          data-label="ID をコピー"
+                          data-copy={entry.session_id}
+                          onclick="navigator.clipboard.writeText(this.dataset.copy); this.textContent = 'コピー完了'; clearTimeout(this._copyTimer); this._copyTimer = setTimeout(() => { this.textContent = this.dataset.label }, 1200);"
+                        >
+                          ID をコピー
+                        </button>
+                      <% else %>
+                        <span class="muted">なし</span>
+                      <% end %>
+                    </span>
+                  </div>
+
+                  <div class="session-meta-item">
+                    <span class="session-meta-label">ワーカーホスト</span>
+                    <span class="session-meta-value mono"><%= entry.worker_host || "なし" %></span>
+                  </div>
+
+                  <%= if entry.workspace_path do %>
+                    <div class="session-meta-item session-meta-item-wide">
+                      <span class="session-meta-label">ワークスペース</span>
+                      <span class="session-meta-value mono session-path"><%= entry.workspace_path %></span>
+                    </div>
+                  <% end %>
+                </div>
+
+                <div class="session-event-row">
+                  <div class="session-event-body">
+                    <span class="session-meta-label">最終 Codex 更新</span>
+                    <span
+                      class="event-text"
+                      title={entry.last_message || to_string(entry.last_event || "なし")}
+                    ><%= entry.last_message || to_string(entry.last_event || "なし") %></span>
+                    <span class="muted event-meta">
+                      <%= entry.last_event || "なし" %>
+                      <%= if entry.last_event_at do %>
+                        · <span class="mono numeric"><%= entry.last_event_at %></span>
+                      <% end %>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="session-token-row numeric">
+                  <div class="session-token-item">
+                    <span class="session-meta-label">合計トークン</span>
+                    <span class="session-token-value"><%= format_int(entry.tokens.total_tokens) %></span>
+                  </div>
+                  <div class="session-token-item">
+                    <span class="session-meta-label">入力</span>
+                    <span class="session-token-value muted"><%= format_int(entry.tokens.input_tokens) %></span>
+                  </div>
+                  <div class="session-token-item">
+                    <span class="session-meta-label">出力</span>
+                    <span class="session-token-value muted"><%= format_int(entry.tokens.output_tokens) %></span>
+                  </div>
+                </div>
+              </article>
             </div>
           <% end %>
         </section>
@@ -209,22 +214,22 @@ defmodule SymphonyElixirWeb.DashboardLive do
         <section class="section-card">
           <div class="section-header">
             <div>
-              <h2 class="section-title">Retry queue</h2>
-              <p class="section-copy">Issues waiting for the next retry window.</p>
+              <h2 class="section-title">リトライキュー</h2>
+              <p class="section-copy">次のリトライウィンドウを待機中のイシュー。</p>
             </div>
           </div>
 
           <%= if @payload.retrying == [] do %>
-            <p class="empty-state">No issues are currently backing off.</p>
+            <p class="empty-state">現在バックオフ中のイシューはありません。</p>
           <% else %>
             <div class="table-wrap">
               <table class="data-table" style="min-width: 680px;">
                 <thead>
                   <tr>
-                    <th>Issue</th>
-                    <th>Attempt</th>
-                    <th>Due at</th>
-                    <th>Error</th>
+                    <th>イシュー</th>
+                    <th>試行回数</th>
+                    <th>実行予定時刻</th>
+                    <th>エラー</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -232,12 +237,12 @@ defmodule SymphonyElixirWeb.DashboardLive do
                     <td>
                       <div class="issue-stack">
                         <span class="issue-id"><%= entry.issue_identifier %></span>
-                        <a class="issue-link" href={"/api/v1/#{entry.issue_identifier}"}>JSON details</a>
+                        <a class="issue-link" href={"/api/v1/#{entry.issue_identifier}"}>JSON 詳細</a>
                       </div>
                     </td>
                     <td><%= entry.attempt %></td>
-                    <td class="mono"><%= entry.due_at || "n/a" %></td>
-                    <td><%= entry.error || "n/a" %></td>
+                    <td class="mono"><%= entry.due_at || "なし" %></td>
+                    <td><%= entry.error || "なし" %></td>
                   </tr>
                 </tbody>
               </table>
@@ -271,13 +276,6 @@ defmodule SymphonyElixirWeb.DashboardLive do
         total + runtime_seconds_from_started_at(entry.started_at, now)
       end)
   end
-
-  defp format_runtime_and_turns(started_at, turn_count, now) when is_integer(turn_count) and turn_count > 0 do
-    "#{format_runtime_seconds(runtime_seconds_from_started_at(started_at, now))} / #{turn_count}"
-  end
-
-  defp format_runtime_and_turns(started_at, _turn_count, now),
-    do: format_runtime_seconds(runtime_seconds_from_started_at(started_at, now))
 
   defp format_runtime_seconds(seconds) when is_number(seconds) do
     whole_seconds = max(trunc(seconds), 0)
