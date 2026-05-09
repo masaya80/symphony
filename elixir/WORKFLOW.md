@@ -16,7 +16,7 @@ tracker:
     - Duplicate
     - Done
 polling:
-  interval_ms: 5000
+  interval_ms: 60000
 workspace:
   root: ~/code/symphony-workspaces/pckk
 server:
@@ -25,6 +25,9 @@ server:
 hooks:
   after_create: |
     git clone --depth 1 https://github.com/KieiAI/pacific-proposal .
+    if [ -f "$HOME/.config/pckk/.env" ]; then
+      cp "$HOME/.config/pckk/.env" elixir/.env
+    fi
     if command -v mise >/dev/null 2>&1; then
       cd elixir && mise trust && mise exec -- mix deps.get
     fi
@@ -38,7 +41,7 @@ codex:
   approval_policy: never
   thread_sandbox: workspace-write
   turn_sandbox_policy:
-    type: dangerousFullAccess
+    type: dangerFullAccess
 ---
 
 You are working on a Linear ticket `{{ issue.identifier }}`
@@ -255,15 +258,18 @@ Use this only when completion is blocked by missing required tools or missing au
 
 ## Step 4: Rework handling
 
-1. Treat `Rework` as a full approach reset, not incremental patching.
-2. Re-read the full issue body and all human comments; explicitly identify what will be done differently this attempt.
-3. Close the existing PR tied to the issue.
-4. Remove the existing `## Codex Workpad` comment from the issue.
-5. Create a fresh branch from `origin/main`.
-6. Start over from the normal kickoff flow:
-   - If current issue state is `Todo`, move it to `In Progress`; otherwise keep the current state.
-   - Create a new bootstrap `## Codex Workpad` comment.
-   - Build a fresh plan/checklist and execute end-to-end.
+Treat `Rework` as incremental patching on the existing branch, not a full reset.
+
+1. Re-read the full issue body, all PR review comments (human and bot), and the existing workpad; explicitly list what needs to change.
+2. Stay on the current branch; do not close the PR or create a new branch.
+3. Reopen the existing `## Codex Workpad` comment and update it in place:
+   - Add a `### Rework` section listing each review item and its resolution plan.
+   - Do not delete prior plan/acceptance/validation history.
+4. Address each review comment:
+   - Make the required code/test/docs changes, or post an explicit, justified pushback reply on that thread.
+5. Run the full PR feedback sweep protocol to confirm no actionable comments remain.
+6. Push the updated branch and confirm PR checks are green.
+7. Move the issue back to `Human Review`.
 
 ## Completion bar before Human Review
 
